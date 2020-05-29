@@ -10,7 +10,7 @@ Adapun untuk melakukan percobaan ini dibutuhkan beberapa perangkat seperti
 | 3  | Resistor 220 ohm      | 4      |
 | 4  | Buzzer                | 1      |
 | 5  | Breadboard            | 2      |
-| 6  | Seperangkat Mobil 4WD | 1      |
+| 6  | 4WD Smart Robot Car Chassis Kit | 1      |
 | 7  | L298N                 | 1      |
 
 Selain perangkat di atas, dibutuhkan juga kabel jumper male female ataupun male male.
