@@ -8,13 +8,13 @@
 BluetoothSerial serial;
 
 // Motor kiri
-#define KIRI_en 14
-#define KIRI_in1 26
-#define KIRI_in2 27
+#define KIRI_en 25
+#define KIRI_in1 32
+#define KIRI_in2 33
 // Motor kanan
-#define KANAN_en 25
-#define KANAN_in1 32
-#define KANAN_in2 33
+#define KANAN_en 14
+#define KANAN_in1 26
+#define KANAN_in2 27
 
 #define LED_FRONT_1 13
 #define LED_BACK_1 12
@@ -34,56 +34,45 @@ const int pwmChannel1 = 1;
 const int pwmChannel2 = 2;
 const int resolution = 8;
 
-void setup()
-{
-  Serial.begin(115200);
-  serial.begin("robot-car");
+TaskHandle_t blink;
 
-  pinMode(KIRI_en, OUTPUT);
-  pinMode(KIRI_in1, OUTPUT);
-  pinMode(KIRI_in2, OUTPUT);
-
-  pinMode(KANAN_en, OUTPUT);
-  pinMode(KANAN_in1, OUTPUT);
-  pinMode(KANAN_in2, OUTPUT);
-
-  pinMode(LED_FRONT_1, OUTPUT);
-  pinMode(LED_BACK_1, OUTPUT);
-  pinMode(LED_HORN, OUTPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-
-  ledcSetup(pwmChannel0, freq, resolution);
-  ledcSetup(pwmChannel1, freq, resolution);
-  ledcSetup(pwmChannel2, freqBuzzer, resolution);
-  ledcAttachPin(KIRI_en, pwmChannel0);
-  ledcAttachPin(KANAN_en, pwmChannel1);
-  ledcAttachPin(LED_HORN, pwmChannel2);
-
-  Serial.println("Robot car 4WD ready...");
-}
-
+/*
+Semua roda maju ketika maju, semua diberikan HIGH
+Semua roda mundur ketika mundur, semua diberikan LOW
+*/
 void arah(bool maju)
 {
   Serial.print("Maju ");
   Serial.println(maju);
+  // motor kiri
   digitalWrite(KIRI_in1, maju ? LOW : HIGH);
   digitalWrite(KIRI_in2, !maju ? LOW : HIGH);
+
+  // motor kanan
   digitalWrite(KANAN_in1, maju ? LOW : HIGH);
   digitalWrite(KANAN_in2, !maju ? LOW : HIGH);
   ledcWrite(pwmChannel0, kecepatan);
   ledcWrite(pwmChannel1, kecepatan);
 }
 
+/*
+Ketika belok kanan
+Roda depan belakang sebelah kanan diam, sedangkan roda depan belakang sebelah kiri maju
+
+Ketika belok kiri
+Roda depan belakang sebelah kiri diam, sedangkan roda depan belakang sebelah kanan maju
+*/
 void belok(bool kanan)
 {
-  Serial.print("Kanan ");
+  Serial.print("Belok ");
   Serial.println(kanan);
-  digitalWrite(KIRI_in1, kanan ? LOW : HIGH);
+  digitalWrite(KIRI_in1, kanan ? LOW : LOW);
   digitalWrite(KIRI_in2, !kanan ? LOW : HIGH);
-  digitalWrite(KANAN_in1, kanan ? HIGH : LOW);
+
+  digitalWrite(KANAN_in1, kanan ? LOW : LOW);
   digitalWrite(KANAN_in2, !kanan ? HIGH : LOW);
-  ledcWrite(pwmChannel0, kecepatan / speed_Coeff);
-  ledcWrite(pwmChannel1, kecepatan / speed_Coeff);
+  ledcWrite(pwmChannel0, kecepatan);
+  ledcWrite(pwmChannel1, kecepatan);
 }
 
 void belok_maju(bool kanan)
@@ -92,6 +81,7 @@ void belok_maju(bool kanan)
   Serial.println(kanan);
   digitalWrite(KIRI_in1, kanan ? LOW : HIGH);
   digitalWrite(KIRI_in2, !kanan ? LOW : HIGH);
+
   digitalWrite(KANAN_in1, kanan ? HIGH : LOW);
   digitalWrite(KANAN_in2, !kanan ? HIGH : LOW);
   ledcWrite(pwmChannel0, kanan ? (kecepatan) : (kecepatan / speed_Coeff));
@@ -121,6 +111,51 @@ void berhenti()
   ledcWrite(pwmChannel1, kecepatan);
 }
 
+//Task1code: blinks an LED every 1000 ms
+void Task1code(void *pvParameters)
+{
+  Serial.print("Task1 running on core ");
+  Serial.println(xPortGetCoreID());
+
+  for (;;)
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(500);
+  }
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  serial.begin("robot-car");
+
+  pinMode(KIRI_en, OUTPUT);
+  pinMode(KIRI_in1, OUTPUT);
+  pinMode(KIRI_in2, OUTPUT);
+
+  pinMode(KANAN_en, OUTPUT);
+  pinMode(KANAN_in1, OUTPUT);
+  pinMode(KANAN_in2, OUTPUT);
+
+  pinMode(LED_FRONT_1, OUTPUT);
+  pinMode(LED_BACK_1, OUTPUT);
+  pinMode(LED_HORN, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  ledcSetup(pwmChannel0, freq, resolution);
+  ledcSetup(pwmChannel1, freq, resolution);
+  ledcSetup(pwmChannel2, freqBuzzer, resolution);
+  ledcAttachPin(KIRI_en, pwmChannel0);
+  ledcAttachPin(KANAN_en, pwmChannel1);
+  ledcAttachPin(LED_HORN, pwmChannel2);
+
+  xTaskCreatePinnedToCore(Task1code, "Blink", 10000, NULL, 1, &blink, 0);
+  delay(500);
+  Serial.println("Robot car 4WD ready...");
+}
+
 void loop()
 {
   if (serial.available())
@@ -133,35 +168,29 @@ void loop()
     {
       Serial.println("Light front");
       digitalWrite(LED_FRONT_1, HIGH);
-      digitalWrite(LED_BUILTIN, HIGH);
     }
     if (!lightFront)
     {
       digitalWrite(LED_FRONT_1, LOW);
-      digitalWrite(LED_BUILTIN, LOW);
     }
 
     if (lightBack)
     {
       Serial.println("Light back");
       digitalWrite(LED_BACK_1, HIGH);
-      digitalWrite(LED_BUILTIN, HIGH);
     }
     if (!lightBack)
     {
       digitalWrite(LED_BACK_1, LOW);
-      digitalWrite(LED_BUILTIN, LOW);
     }
 
     if (horn)
     {
       Serial.println("Horn");
-      digitalWrite(LED_BUILTIN, HIGH);
       ledcWriteTone(pwmChannel2, freqBuzzer);
     }
     if (!horn)
     {
-      digitalWrite(LED_BUILTIN, LOW);
       ledcWriteTone(pwmChannel2, LOW);
     }
 
